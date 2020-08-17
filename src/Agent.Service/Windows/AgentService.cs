@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
@@ -39,6 +40,9 @@ namespace AgentService
                     {
                         try
                         {
+                            // Check for the --once flag to avoid the agent picking up multiple jobs
+                            bool runOnce = args.Contains("--once");
+
                             bool stopping;
                             WriteInfo("Starting VSTS Agent Service");
                             TimeSpan timeBetweenRetries = TimeSpan.FromSeconds(5);
@@ -53,7 +57,7 @@ namespace AgentService
                                 WriteInfo("Starting VSTS Agent listener");
                                 lock (ServiceLock)
                                 {
-                                    AgentListener = CreateAgentListener();
+                                    AgentListener = CreateAgentListener(runOnce);
                                     AgentListener.OutputDataReceived += AgentListener_OutputDataReceived;
                                     AgentListener.ErrorDataReceived += AgentListener_ErrorDataReceived;
                                     AgentListener.Start();
@@ -150,12 +154,14 @@ namespace AgentService
             }
         }
 
-        private Process CreateAgentListener()
+        private Process CreateAgentListener(bool runOnce)
         {
+            string once = runOnce ? "--once" : null;
+
             string exeLocation = Assembly.GetEntryAssembly().Location;
             string agentExeLocation = Path.Combine(Path.GetDirectoryName(exeLocation), "Agent.Listener.exe");
             Process newProcess = new Process();
-            newProcess.StartInfo = new ProcessStartInfo(agentExeLocation, "run --startuptype service");
+            newProcess.StartInfo = new ProcessStartInfo(agentExeLocation, $"run --startuptype service {once}");
             newProcess.StartInfo.CreateNoWindow = true;
             newProcess.StartInfo.UseShellExecute = false;
             newProcess.StartInfo.RedirectStandardInput = true;
